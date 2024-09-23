@@ -78,7 +78,7 @@ def gen_ipie_input_from_pyscf_chk(
         num_frozen_core=num_frozen_core,
         verbose=verbose,
     )
-    write_hamiltonian(ham.H1[0], copy_LPX_to_LXmn(ham.chol), ham.ecore, filename=hamil_file)
+    write_hamiltonian(ham.H1[0].reshape((8,8)), copy_LPX_to_LXmn(ham.chol), ham.ecore, filename=hamil_file)
     nelec = (mol.nelec[0] - num_frozen_core, mol.nelec[1] - num_frozen_core)
     if verbose:
         print(f"# Number of electrons in simulation: {nelec}")
@@ -164,9 +164,46 @@ def generate_hamiltonian(
     ortho_ao: bool = False,
     verbose: bool = False,
 ) -> GenericRealChol:
-    h1e, chol, e0 = generate_integrals(
-        mol, hcore, basis_change_matrix, chol_cut=chol_cut, verbose=verbose
-    )
+    #fcid = read_fcid("4x2_U4.0")
+    #hcore = fcid['H1']
+    #h1e, chol, e0 = generate_integrals(
+    #    mol, hcore, basis_change_matrix, chol_cut=chol_cut, verbose=verbose
+    #
+    with h5py.File("FCIDUMP_chol", "r") as fh5:
+        nbasis = 8
+        #h1e = np.array(fh5['hcore'][:])
+        #h1e = h1e.reshape((-1,nbasis,nbasis))
+        chol = np.array(fh5['chol'][:])
+        hcore = hcore.reshape((nbasis,nbasis))
+        e0 = np.real(fh5['energy_core'])
+        print(f"e0: {e0}")
+        print(f"n basis: {nbasis}")
+        chol = chol.reshape((-1,nbasis,nbasis))
+        print(f"len chol shape?: {len(chol.shape)}")
+        #print(h1e)
+        #print(chol)
+        #print(e0)
+        X = basis_change_matrix
+        if len(X.shape) == 2:
+            h1e = np.dot(X.T, np.dot(hcore, X))
+        elif len(X.shape) == 3:
+            h1e = np.dot(X[0].T, np.dot(hcore, X[0]))
+        nbasis = h1e.shape[-1]
+        # Step 2. Genrate Cholesky decomposed ERIs in non-orthogonal AO basis.
+        #if verbose:
+        #    print(" # Performing modified Cholesky decomposition on ERI tensor.")
+        #chol_vecs = chunked_cholesky(mol, max_error=chol_cut, verbose=verbose)
+        #if verbose:
+        #    print(" # Orthogonalising Cholesky vectors.")
+        #start = time.time()
+        # Step 2.a Orthogonalise Cholesky vectors.
+        #if len(X.shape) == 2:
+        #    ao2mo_chol(chol, X)
+        #elif len(X.shape) == 3:
+        #    ao2mo_chol(chol, X[0])
+        #if verbose:
+        #    print(f" # Time to orthogonalise: {time.time() - start:f}")
+        #enuc = mol.energy_nuc()
     if num_frozen_core > 0:
         assert not ortho_ao, "--ortho-ao and --frozen-core not supported together."
         assert num_frozen_core <= mol.nelec[0], f"{num_frozen_core} < {mol.nelec[0]}"
@@ -622,12 +659,17 @@ def load_from_pyscf_chkfile(chkfile, base="scf"):
         try:
             hcore = fh5["/scf/hcore"][:]
         except KeyError:
-            hcore = scf.hf.get_hcore(mol)
+            fcid = read_fcid("4x2_U4.0")
+            hcore = np.array(fcid['H1'][:])
+            hcore = hcore.reshape((8,8))
+            #hcore = scf.hf.get_hcore(mol)
         try:
             X = fh5["/scf/orthoAORot"][:]
         except KeyError:
-            s1e = mol.intor("int1e_ovlp_sph")
-            X = get_ortho_ao(s1e)
+            #s1e = mol.intor("int1e_ovlp_sph")
+            #X = get_ortho_ao(s1e)
+            nelec = 8
+            X = np.eye(nelec)
         if base == "mcscf":
             try:
                 ci_coeffs = fh5["mcscf/ci_coeffs"][:]
@@ -639,6 +681,9 @@ def load_from_pyscf_chkfile(chkfile, base="scf"):
                 occb = None
     mo_occ = lib.chkfile.load(chkfile, base + "/mo_occ")
     mo_coeff = lib.chkfile.load(chkfile, base + "/mo_coeff")
+    #X = mo_coeff # ?   
+    print("the mo coeffs?")
+    print(mo_coeff)
     if mo_coeff is None:
         mo_occ = lib.chkfile.load(chkfile, "/scf" + "/mo_occ")
         mo_coeff = lib.chkfile.load(chkfile, "/scf" + "/mo_coeff")
@@ -649,6 +694,77 @@ def load_from_pyscf_chkfile(chkfile, base="scf"):
         scf_data["occb"] = occb
     return scf_data
 
+def read_fcid(filename, molpro_orbsym=True):
+    import re
+    '''Parse FCIDUMP.  Return a dictionary to hold the integrals and
+    parameters with keys:  H1, H2, ECORE, NORB, NELEC, MS, ORBSYM, ISYM
+
+    Kwargs:
+        molpro_orbsym (bool): Whether the orbsym in the FCIDUMP file is in
+            Molpro orbsym convention as documented in
+            https://www.molpro.net/info/current/doc/manual/node36.html
+            In return, orbsym is converted to pyscf symmetry convention
+    '''
+    print('Parsing %s' % filename)
+    finp = open(filename, 'r')
+
+    data = []
+    for i in range(10):
+        line = finp.readline().upper()
+        data.append(line)
+        if '&END' in line:
+            break
+    else:
+        raise RuntimeError('Problematic FCIDUMP header')
+
+    result = {}
+    tokens = ','.join(data).replace('&FCI', '').replace('&END', '')
+    tokens = tokens.replace(' ', '').replace('\n', '').replace(',,', ',')
+    for token in re.split(',(?=[a-zA-Z])', tokens):
+        key, val = token.split('=')
+        if key in ('NORB', 'NELEC', 'MS2', 'ISYM'):
+            result[key] = int(val.replace(',', ''))
+        elif key in ('ORBSYM',):
+            result[key] = [int(x) for x in val.replace(',', ' ').split()]
+        else:
+            result[key] = val
+
+    norb = result['NORB']
+    norb_pair = norb * (norb+1) // 2
+    h1e = np.zeros((norb,norb))
+    h2e = np.zeros(norb_pair*(norb_pair+1)//2)
+    dat = finp.readline().split()
+    while dat:
+        i, j, k, l = [int(x) for x in dat[1:5]]
+        if k != 0:
+            if i >= j:
+                ij = i * (i-1) // 2 + j-1
+            else:
+                ij = j * (j-1) // 2 + i-1
+            if k >= l:
+                kl = k * (k-1) // 2 + l-1
+            else:
+                kl = l * (l-1) // 2 + k-1
+            if ij >= kl:
+                h2e[ij*(ij+1)//2+kl] = float(dat[0])
+            else:
+                h2e[kl*(kl+1)//2+ij] = float(dat[0])
+        elif k == 0:
+            if j != 0:
+                h1e[i-1,j-1] = float(dat[0])
+            else:
+                result['ECORE'] = float(dat[0])
+        dat = finp.readline().split()
+
+    idx, idy = np.tril_indices(norb, -1)
+    if np.linalg.norm(h1e[idy,idx]) == 0:
+        h1e[idy,idx] = h1e[idx,idy]
+    elif np.linalg.norm(h1e[idx,idy]) == 0:
+        h1e[idx,idy] = h1e[idy,idx]
+    result['H1'] = h1e
+    result['H2'] = h2e
+    finp.close()
+    return result
 
 def freeze_core(h1e, chol, ecore, X, nfrozen, verbose=False):
     # 1. Construct one-body hamiltonian
