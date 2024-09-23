@@ -197,10 +197,12 @@ def generate_hamiltonian(
         #    print(" # Orthogonalising Cholesky vectors.")
         #start = time.time()
         # Step 2.a Orthogonalise Cholesky vectors.
-        #if len(X.shape) == 2:
-        #    ao2mo_chol(chol, X)
-        #elif len(X.shape) == 3:
-        #    ao2mo_chol(chol, X[0])
+        chol = chol.reshape((-1,nbasis*nbasis))
+        if len(X.shape) == 2:
+            ao2mo_chol(chol, X)
+        elif len(X.shape) == 3:
+            ao2mo_chol(chol, X[0])
+        chol = chol.reshape((-1,nbasis,nbasis))
         #if verbose:
         #    print(f" # Time to orthogonalise: {time.time() - start:f}")
         #enuc = mol.energy_nuc()
