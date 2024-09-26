@@ -69,18 +69,27 @@ class FreePropagation(PhaselessGeneric):
         synchronize()
         start_time = time.time()
         ovlp = trial.calc_greens_function(walkers)
+        #print(f"overlap before: {ovlp}")
         synchronize()
         self.timer.tgf += time.time() - start_time
 
         # 2. Update Slater matrix
         # 2.a Apply one-body
+        #print(f"ovlp (bef), {ovlp}")
         self.propagate_walkers_one_body(walkers)
+        #ovlp_new = trial.calc_overlap(walkers)
+        #print(f"ovlp (1b #1), {ovlp_new}")
 
         # 2.b Apply two-body
         (cmf, ceshift) = self.propagate_walkers_two_body(walkers, hamiltonian, trial)
+        #ovlp_new = trial.calc_overlap(walkers)
+        #print(f"ovlp (2b), {ovlp_new}")
 
         # 2.c Apply one-body
         self.propagate_walkers_one_body(walkers)
+        #ovlp_new = trial.calc_overlap(walkers)
+        #print(f"ovlp (1b #2), {ovlp_new}")
+        #print("---")
 
         start_time = time.time()
         ovlp_new = trial.calc_overlap(walkers)

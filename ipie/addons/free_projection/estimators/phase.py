@@ -25,6 +25,10 @@ class PhaseEstimatorFP(EstimatorBase):
         weighted_phase = np.sum(walkers.weight * walkers.phase * walkers.ovlp)
         self._data["PhaseRealNumer"] = weighted_phase.real
         self._data["PhaseImagNumer"] = weighted_phase.imag
+        # might be the overlap actually, though god knows how
+        #print(f"walker weight: {walkers.weight}")
+        #print(f"walker phase: {walkers.phase}")
+        #print(f"walker overlap: {walkers.ovlp}")
         self._data["PhaseDenom"] = np.sum(walkers.weight * magn_phase * magn_ovlp)
 
         return self.data

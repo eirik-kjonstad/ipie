@@ -142,6 +142,8 @@ def get_driver_fp(options: dict, comm: MPI.COMM_WORLD) -> FPAFQMC:
             rng_seed=qmc.rng_seed,
             num_iterations_fp=get_input_value(qmc_opts, "num_iterations_fp", 1),
         )
+        print(f"pop contr freq: {qmc.npop_control}")
+        print(f"n stablz: {qmc.nstblz}")
         ene_0 = local_energy(system, hamiltonian, walkers, trial)[0][0]
         propagator = FreePropagation(time_step=params.timestep, exp_nmax=10, ene_0=ene_0)
         propagator.build(hamiltonian, trial, walkers, mpi_handler)

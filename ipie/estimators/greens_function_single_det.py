@@ -100,6 +100,8 @@ def greens_function_single_det(walker_batch, trial, build_full=False):
 
     synchronize()
 
+    #print(f"det in calc green: {det}")
+
     return det
 
 

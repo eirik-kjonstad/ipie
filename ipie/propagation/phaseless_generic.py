@@ -94,7 +94,7 @@ class PhaselessGeneric(PhaselessBase):
             xp._default_memory_pool.free_all_blocks()
         else:
             unpack_VHS_batch(hamiltonian.sym_idx[0], hamiltonian.sym_idx[1], VHS_packed, VHS)
-        return VHS
+        return VHS 
 
     @plum.dispatch
     def construct_VHS(self, hamiltonian: GenericComplexChol, xshifted: xp.ndarray) -> xp.ndarray:

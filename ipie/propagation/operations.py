@@ -75,7 +75,7 @@ def apply_exponential(phi, VHS, exp_nmax):
 
     xp.copyto(Temp, phi)
     for n in range(1, exp_nmax + 1):
-        Temp = VHS.dot(Temp) / n
+        Temp = 1.0j * VHS.dot(Temp) / n # apply 1.0j here?
         phi += Temp
 
     synchronize()

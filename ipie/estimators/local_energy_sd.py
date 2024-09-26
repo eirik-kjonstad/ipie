@@ -388,6 +388,9 @@ def local_energy_single_det_uhf_batch(
     e1b += Ghalfb_batch.dot(trial._rH1b.ravel())
     e1b += hamiltonian.ecore
 
+    #print(f"core energy? {hamiltonian.ecore}")
+    #print(f"one elec energy? {e1b}")
+
     ecoul = ecoul_kernel_batch_real_rchol_uhf(
         trial._rchola, trial._rcholb, walkers.Ghalfa, walkers.Ghalfb
     )
@@ -395,6 +398,9 @@ def local_energy_single_det_uhf_batch(
         trial._rcholb, walkers.Ghalfb
     )
     e2b = ecoul - exx
+
+    e2b = -e2b # trying to account for imaginary cholesky
+    #print(f"two elec energy? {e2b}")
 
     energy = xp.zeros((nwalkers, 3), dtype=numpy.complex128)
     energy[:, 0] = e1b + e2b

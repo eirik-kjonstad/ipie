@@ -49,11 +49,11 @@ def construct_one_body_propagator(
         start_n = hamiltonian.chunk_displacements[hamiltonian.handler.srank]
         end_n = hamiltonian.chunk_displacements[hamiltonian.handler.srank + 1]
         if hasattr(mf_shift, "get"):
-            shift = 1j * numpy.einsum(
+            shift = 1j * 1j * numpy.einsum(
                 "mx,x->m", hamiltonian.chol_chunk, mf_shift.get()[start_n:end_n]
             ).reshape(nb, nb)
         else:
-            shift = 1j * numpy.einsum(
+            shift = 1j * 1j * numpy.einsum(
                 "mx,x->m", hamiltonian.chol_chunk, mf_shift[start_n:end_n]
             ).reshape(nb, nb)
         if MPI is None:
@@ -61,7 +61,7 @@ def construct_one_body_propagator(
         else:
             shift = hamiltonian.handler.scomm.allreduce(shift, op=MPI.SUM)
     else:
-        shift = 1j * numpy.einsum("mx,x->m", hamiltonian.chol, mf_shift).reshape(nb, nb)
+        shift = 1j * 1j * numpy.einsum("mx,x->m", hamiltonian.chol, mf_shift).reshape(nb, nb)
     shift = xp.array(shift)
     H1 = hamiltonian.h1e_mod - xp.array([shift, shift])
     if hasattr(H1, "get"):
@@ -114,6 +114,7 @@ def construct_mean_field_shift(hamiltonian: GenericRealCholChunked, trial: Trial
         \bar{v}_n = \sum_{ik\sigma} v_{(ik),n} G_{ik\sigma}
 
     """
+    print("am i here 1")
     # hamiltonian.chol [M^2, nchol]
     Gcharge = (trial.G[0] + trial.G[1]).ravel()
 
@@ -161,6 +162,8 @@ def construct_mean_field_shift(
         \bar{v}_n = \sum_{ik\sigma} v_{(ik),n} G_{ik\sigma}
 
     """
+    print("am i here 2")
+
     # hamiltonian.chol [M^2, nchol]
     Gcharge = (trial.G[0] + trial.G[1]).ravel()
 
@@ -169,6 +172,11 @@ def construct_mean_field_shift(
     tmp_real = numpy.dot(hamiltonian.chol.T, Gcharge.real)
     tmp_imag = numpy.dot(hamiltonian.chol.T, Gcharge.imag)
     mf_shift = 1.0j * tmp_real - tmp_imag
+
+    # multiplying mf shift
+    print("multiplying mf shift by i")
+    mf_shift = 1.0j * mf_shift
+
     return xp.array(mf_shift)
 
 
@@ -181,6 +189,8 @@ def construct_mean_field_shift(hamiltonian: GenericRealChol, trial: SingleDetGHF
         \bar{v}_n = \sum_{ik\sigma} v_{(ik),n} G_{ik\sigma}
 
     """
+    print("am i here 3")
+
     # hamiltonian.chol [M^2, nchol]
     nbasis = hamiltonian.nbasis
     Gaa = trial.G[:nbasis, :nbasis]
@@ -206,6 +216,8 @@ def construct_mean_field_shift(
         \bar{v}_n = \sum_{ik\sigma} v_{(ik),n} G_{ik\sigma}
 
     """
+    print("am i here 4")
+
     # hamiltonian.chol [M^2, nchol]
     Gcharge = (trial.G[0] + trial.G[1]).ravel()
     nchol = hamiltonian.nchol
@@ -226,6 +238,8 @@ def construct_mean_field_shift(hamiltonian: GenericComplexChol, trial: SingleDet
         \bar{v}_n = \sum_{ik\sigma} v_{(ik),n} G_{ik\sigma}
 
     """
+    print("am i here 5")
+
     # hamiltonian.chol [M^2, nchol]
     nbasis = hamiltonian.nbasis
     Gaa = trial.G[:nbasis, :nbasis]

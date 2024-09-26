@@ -49,7 +49,8 @@ class UHFWalkersFP(UHFWalkers):
         free_projection : bool
             This flag is not used here.
         """
-        detR = self.reortho()
+        #detR = self.reortho()
+        detR = self.reortho_fromphaseless()
         magn, dtheta = xp.abs(self.detR), xp.angle(self.detR)
         self.weight *= magn
         self.phase *= xp.exp(1j * dtheta)
@@ -69,6 +70,43 @@ class UHFWalkersFP(UHFWalkers):
         self.ovlp = self.ovlp / self.detR
         synchronize()
         return self.detR
+
+    def reortho_fromphaseless(self):
+        """reorthogonalise walkers."""
+        if config.get_option("use_gpu"):
+            return self.reortho_batched()
+        ndown = self.ndown
+        detR = []
+        for iw in range(self.nwalkers):
+            (self.phia[iw], Rup) = qr(self.phia[iw], mode=qr_mode)
+            # TODO: FDM This isn't really necessary, the absolute value of the
+            # weight is used for population control so this shouldn't matter.
+            # I think this is a legacy thing.
+            # Wanted detR factors to remain positive, dump the sign in orbitals.
+            Rup_diag = xp.diag(Rup)
+            signs_up = xp.sign(Rup_diag)
+            self.phia[iw] = xp.dot(self.phia[iw], xp.diag(signs_up))
+
+            # include overlap factor
+            # det(R) = \prod_ii R_ii
+            # det(R) = exp(log(det(R))) = exp((sum_i log R_ii) - C)
+            # C factor included to avoid over/underflow
+            log_det = xp.sum(xp.log(xp.abs(Rup_diag)))
+
+            if ndown > 0:
+                (self.phib[iw], Rdn) = qr(self.phib[iw], mode=qr_mode)
+                Rdn_diag = xp.diag(Rdn)
+                signs_dn = xp.sign(Rdn_diag)
+                self.phib[iw] = xp.dot(self.phib[iw], xp.diag(signs_dn))
+                log_det += sum(xp.log(abs(Rdn_diag)))
+
+            detR += [xp.exp(log_det - self.detR_shift[iw])]
+            self.log_detR[iw] += xp.log(detR[iw])
+            self.detR[iw] = detR[iw]
+            self.ovlp[iw] = self.ovlp[iw] / detR[iw]
+
+        synchronize()
+        return detR
 
     def reortho(self):
         """reorthogonalise walkers for free projection, retaining normalization.

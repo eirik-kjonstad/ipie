@@ -34,6 +34,7 @@ from ipie.utils.io import to_json
 from ipie.utils.mpi import MPIHandler
 from ipie.walkers.base_walkers import WalkerAccumulator
 from ipie.walkers.walkers_dispatch import get_initial_walker
+from ipie.walkers.pop_controller import PopController
 
 
 class FPAFQMC(AFQMC):
@@ -294,6 +295,13 @@ class FPAFQMC(AFQMC):
         eshift = 0.0
         self.walkers.orthogonalise()
 
+        self.pcontrol = PopController(
+            self.params.num_walkers,
+            self.params.num_steps_per_block,
+            self.mpi_handler,
+            verbose=self.verbose,
+        )
+
         self.get_env_info()
         self.copy_to_gpu()
         self.distribute_hamiltonian()
@@ -325,6 +333,7 @@ class FPAFQMC(AFQMC):
                 synchronize()
                 start_step = time.time()
                 if step % self.params.num_stblz == 0:
+                    #print("orthogonalizing!!")
                     start = time.time()
                     self.walkers.orthogonalise()
                     synchronize()
@@ -364,6 +373,13 @@ class FPAFQMC(AFQMC):
                     block_number += 1
                 synchronize()
                 self.testim += time.time() - start
+
+                if step % self.params.pop_control_freq == 0:
+                    comm.Barrier()
+
+                if step % self.params.pop_control_freq == 0:
+                    self.pcontrol.pop_control(self.walkers, comm)
+                    synchronize()
 
                 # restart write features disabled
                 # if self.walkers.write_restart and step % self.walkers.write_freq == 0:
