@@ -78,7 +78,8 @@ def gen_ipie_input_from_pyscf_chk(
         num_frozen_core=num_frozen_core,
         verbose=verbose,
     )
-    write_hamiltonian(ham.H1[0].reshape((8,8)), copy_LPX_to_LXmn(ham.chol), ham.ecore, filename=hamil_file)
+    n_mos = mol.nelec[0] + mol.nelec[1]
+    write_hamiltonian(ham.H1[0].reshape((n_mos,n_mos)), copy_LPX_to_LXmn(ham.chol), ham.ecore, filename=hamil_file)
     nelec = (mol.nelec[0] - num_frozen_core, mol.nelec[1] - num_frozen_core)
     if verbose:
         print(f"# Number of electrons in simulation: {nelec}")
@@ -170,7 +171,7 @@ def generate_hamiltonian(
     #    mol, hcore, basis_change_matrix, chol_cut=chol_cut, verbose=verbose
     #
     with h5py.File("FCIDUMP_chol", "r") as fh5:
-        nbasis = 8
+        nbasis = mol.nelec[0] + mol.nelec[1]
         #h1e = np.array(fh5['hcore'][:])
         #h1e = h1e.reshape((-1,nbasis,nbasis))
         chol = np.array(fh5['chol'][:])
@@ -661,16 +662,20 @@ def load_from_pyscf_chkfile(chkfile, base="scf"):
         try:
             hcore = fh5["/scf/hcore"][:]
         except KeyError:
-            fcid = read_fcid("4x2_U4.0")
+            file = open("dumpfname.txt", "r")
+            lines = file.readlines()
+            file.close()
+            fcid = read_fcid(lines[0].strip())
             hcore = np.array(fcid['H1'][:])
-            hcore = hcore.reshape((8,8))
+            n_mos = mol.nelec[0] + mol.nelec[1]
+            hcore = hcore.reshape((n_mos,n_mos))
             #hcore = scf.hf.get_hcore(mol)
         try:
             X = fh5["/scf/orthoAORot"][:]
         except KeyError:
             #s1e = mol.intor("int1e_ovlp_sph")
             #X = get_ortho_ao(s1e)
-            nelec = 8
+            nelec = mol.nelec[0] + mol.nelec[1]
             X = np.eye(nelec)
         if base == "mcscf":
             try:
